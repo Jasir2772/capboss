@@ -2,11 +2,17 @@
 # CapMine Avtomatik Boss Tizimi
 # ==========================================
 
-# Boss qachonlar paydo bo'lishi (Soat:Minut)
 spawn-times:
   - "07:00"
   - "14:00"
   - "21:00"
+
+# Boss qayerda chiqishi (Buni o'yinda /cboss setspawn orqali o'rnatasiz)
+boss-location:
+  world: "world"
+  x: 0.0
+  y: 65.0
+  z: 0.0
 
 boss:
   name: '&#00FF00Qɪsʜʟᴏǫɪ'
@@ -18,7 +24,6 @@ boss:
   boots: NETHERITE_BOOTS
   weapon: NETHERITE_AXE
 
-# Ogohlantirishlar (Necha daqiqa oldin va qanday xabar chiqishi)
 warnings:
   "90": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 1 soat 30 daqiqa qoldi!'
   "15": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 15 daqiqa qoldi!'
@@ -36,10 +41,11 @@ messages:
   no-permission: '&cSizda ruxsat yo''q.'
   spawned: '&#00FF00BOSS PAYDO BO''LDI! Uni o''ldiring!'
   already-spawned: '&cHozir allaqachon bitta boss jangda!'
+  location-set: '&aBoss chiqadigan joy muvaffaqiyatli saqlandi!'
+  location-not-set: '&cBoss chiqadigan joy hali belgilanmagan! Admin /cboss setspawn qilishi kerak.'
   bossbar-title: '&#00FF00Qɪsʜʟᴏǫɪ &#FFFFFF[{current}/{max}]'
   bossbar-enrage: '&#FF0000PvP REJIM: &#FFD700{seconds} SEKUND DAVOM ETADI'
   
-  # Boss o'lgandagi e'lonlar (Rasmda ko'ringanidek)
   death-broadcast:
     - '&8&m----------------------------------------'
     - '&#FF0000QISHLOQI &fYENGILDI! QAHROMONLAR TAQDIRLANADI!'
