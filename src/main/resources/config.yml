@@ -1,0 +1,50 @@
+# ==========================================
+# CapMine Avtomatik Boss Tizimi
+# ==========================================
+
+# Boss qachonlar paydo bo'lishi (Soat:Minut)
+spawn-times:
+  - "07:00"
+  - "14:00"
+  - "21:00"
+
+boss:
+  name: '&#00FF00Qɪsʜʟᴏǫɪ'
+  health: 1500.0
+  enrage-health: 755.0
+  helmet: NETHERITE_HELMET
+  chestplate: NETHERITE_CHESTPLATE
+  leggings: NETHERITE_LEGGINGS
+  boots: NETHERITE_BOOTS
+  weapon: NETHERITE_AXE
+
+# Ogohlantirishlar (Necha daqiqa oldin va qanday xabar chiqishi)
+warnings:
+  "90": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 1 soat 30 daqiqa qoldi!'
+  "15": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 15 daqiqa qoldi!'
+  "5": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 5 daqiqa qoldi!'
+  "1": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 1 daqiqa qoldi!'
+
+rewards:
+  top-1: 5000
+  top-2: 3000
+  top-3: 2000
+  give-command: 'points give %player% %amount%'
+
+messages:
+  prefix: '&#FF0000CapMine Boss &8» '
+  no-permission: '&cSizda ruxsat yo''q.'
+  spawned: '&#00FF00BOSS PAYDO BO''LDI! Uni o''ldiring!'
+  already-spawned: '&cHozir allaqachon bitta boss jangda!'
+  bossbar-title: '&#00FF00Qɪsʜʟᴏǫɪ &#FFFFFF[{current}/{max}]'
+  bossbar-enrage: '&#FF0000PvP REJIM: &#FFD700{seconds} SEKUND DAVOM ETADI'
+  
+  # Boss o'lgandagi e'lonlar (Rasmda ko'ringanidek)
+  death-broadcast:
+    - '&8&m----------------------------------------'
+    - '&#FF0000QISHLOQI &fYENGILDI! QAHROMONLAR TAQDIRLANADI!'
+    - '&#FFD700TOP 3 O''YINCHILAR:'
+    - '&#00FFCC1. %top1% &f- &#FF0000%damage1% ZARAR &7(&e%token1% Token&7)'
+    - '&#00FFCC2. %top2% &f- &#FF0000%damage2% ZARAR &7(&e%token2% Token&7)'
+    - '&#00FFCC3. %top3% &f- &#FF0000%damage3% ZARAR &7(&e%token3% Token&7)'
+    - '&8&m----------------------------------------'
