@@ -1,8 +1,10 @@
 package uz.capmine.boss;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -36,19 +38,15 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
     private final Map<UUID, Double> damageMap = new HashMap<>();
     private boolean isEnraged = false;
     private int enrageTimer = 30;
-    
-    // Ogohlantirishlar eslab qolishi uchun
     private final Set<Integer> sentWarnings = new HashSet<>();
-    private long nextSpawnTime = 0;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         this.getCommand("cboss").setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
-        
         startScheduler();
-        getLogger().info("CapMine Boss tizimi va avtomatik vaqt taymeri yoqildi!");
+        getLogger().info("CapMine Boss tizimi yoqildi!");
     }
 
     private void startScheduler() {
@@ -59,33 +57,32 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
                 LocalTime now = LocalTime.now();
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
-                // Keyingi spawn vaqtini aniqlash
                 long minSeconds = Long.MAX_VALUE;
                 for (String timeStr : times) {
                     try {
                         LocalTime target = LocalTime.parse(timeStr, formatter);
                         long seconds = now.until(target, java.time.temporal.ChronoUnit.SECONDS);
-                        if (seconds < 0) seconds += 86400; // Ertangi kunga o'tkazish
+                        if (seconds < 0) seconds += 86400;
                         if (seconds < minSeconds) minSeconds = seconds;
                     } catch (Exception ignored) {}
                 }
 
-                // Ogohlantirishlarni tekshirish
                 if (minSeconds > 0 && minSeconds <= 5400 && !sentWarnings.contains(90) && minSeconds > 5100) sendWarning(90);
                 else if (minSeconds > 0 && minSeconds <= 900 && !sentWarnings.contains(15) && minSeconds > 600) sendWarning(15);
                 else if (minSeconds > 0 && minSeconds <= 300 && !sentWarnings.contains(5) && minSeconds > 120) sendWarning(5);
                 else if (minSeconds > 0 && minSeconds <= 60 && !sentWarnings.contains(1) && minSeconds > 10) sendWarning(1);
 
-                // Vaqti kelganda bossni chaqirish
                 if (minSeconds <= 0 && minSeconds > -5 && (activeBoss == null || activeBoss.isDead())) {
                     sentWarnings.clear();
-                    if (!Bukkit.getOnlinePlayers().isEmpty()) {
-                        Player randomPlayer = Bukkit.getOnlinePlayers().iterator().next();
-                        spawnBoss(randomPlayer);
+                    Location loc = getSpawnLocation();
+                    if (loc != null) {
+                        spawnBoss(loc);
+                    } else {
+                        Bukkit.getConsoleSender().sendMessage(color("&c[CapMine Boss] XATO: Boss chiqadigan joy belgilanmagan! /cboss setspawn qiling."));
                     }
                 }
             }
-        }.runTaskTimer(this, 0L, 20L); // Har 1 sekundda tekshiradi
+        }.runTaskTimer(this, 0L, 20L);
     }
 
     private void sendWarning(int minutes) {
@@ -96,11 +93,12 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        // Faqat ownerlar (adminlar) qo'lda chaqira oladi
         if (!(sender instanceof Player) || !sender.isOp() && !sender.hasPermission("capmine.boss.admin")) {
             sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.no-permission")));
             return true;
         }
+
+        Player player = (Player) sender;
 
         if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
             reloadConfig();
@@ -108,21 +106,52 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             return true;
         }
 
-        if (activeBoss != null && !activeBoss.isDead()) {
-            sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.already-spawned")));
+        if (args.length > 0 && args[0].equalsIgnoreCase("setspawn")) {
+            getConfig().set("boss-location.world", player.getWorld().getName());
+            getConfig().set("boss-location.x", player.getLocation().getX());
+            getConfig().set("boss-location.y", player.getLocation().getY());
+            getConfig().set("boss-location.z", player.getLocation().getZ());
+            saveConfig();
+            sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.location-set")));
             return true;
         }
 
-        spawnBoss((Player) sender);
+        if (args.length > 0 && args[0].equalsIgnoreCase("spawn")) {
+            if (activeBoss != null && !activeBoss.isDead()) {
+                sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.already-spawned")));
+                return true;
+            }
+            Location loc = getSpawnLocation();
+            if (loc != null) {
+                spawnBoss(loc);
+            } else {
+                sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.location-not-set")));
+            }
+            return true;
+        }
+
+        sender.sendMessage(color("&e[CapMine Boss] Buyruqlar: /cboss setspawn, /cboss spawn, /cboss reload"));
         return true;
     }
 
-    private void spawnBoss(Player loc) {
+    private Location getSpawnLocation() {
+        String worldName = getConfig().getString("boss-location.world", "world");
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return null;
+        
+        double x = getConfig().getDouble("boss-location.x");
+        double y = getConfig().getDouble("boss-location.y");
+        double z = getConfig().getDouble("boss-location.z");
+        
+        return new Location(world, x, y, z);
+    }
+
+    private void spawnBoss(Location loc) {
         damageMap.clear();
         isEnraged = false;
         enrageTimer = 30;
 
-        Zombie boss = (Zombie) loc.getWorld().spawnEntity(loc.getLocation(), EntityType.ZOMBIE);
+        Zombie boss = (Zombie) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
         activeBoss = boss;
 
         double health = getConfig().getDouble("boss.health", 1500.0);
@@ -272,4 +301,4 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         matcher.appendTail(buffer);
         return net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-  }
+                                                                                   }
