@@ -1,0 +1,14 @@
+name: CapMineBoss
+version: 1.0.0
+main: uz.capmine.boss.CapMineBoss
+api-version: '1.19'
+author: CapMine
+description: Premium Boss System by CapMine
+commands:
+  cboss:
+    description: Bossni chaqirish va boshqarish
+    aliases: [boss, capmineboss]
+permissions:
+  capmine.boss.admin:
+    description: Boss admin huquqlari
+    default: op
