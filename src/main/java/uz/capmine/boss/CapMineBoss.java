@@ -12,6 +12,7 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -20,6 +21,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -111,6 +113,14 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             getConfig().set("boss-location.y", player.getLocation().getY());
             getConfig().set("boss-location.z", player.getLocation().getZ());
             saveConfig();
+            
+            // Rasmda ko'ringan spawn xabarini yuborish
+            String spawnMsg = getConfig().getString("messages.spawn-broadcast", "Boss spawn: {x}, {y}, {z}")
+                    .replace("{x}", String.valueOf(Math.round(player.getLocation().getX())))
+                    .replace("{y}", String.valueOf(Math.round(player.getLocation().getY())))
+                    .replace("{z}", String.valueOf(Math.round(player.getLocation().getZ())));
+            Bukkit.broadcastMessage(color(spawnMsg));
+
             sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.location-set")));
             return true;
         }
@@ -150,7 +160,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         isEnraged = false;
         enrageTimer = 30;
 
-        // Eski BossBar qolib ketgan bo'lsa o'chirish
         if (bossBar != null) {
             bossBar.removeAll();
             bossBar = null;
@@ -161,35 +170,65 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         try {
             type = EntityType.valueOf(entityTypeStr.toUpperCase());
         } catch (Exception e) {
-            type = EntityType.ZOMBIE_VILLAGER; // Xato bo'lsa default
+            type = EntityType.ZOMBIE_VILLAGER;
         }
 
         LivingEntity boss = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
         activeBoss = boss;
 
-        // 1 soniyalik himoya (darhol o'lib qolmasligi uchun)
+        // WorldGuard moblarni o'ldirib yubormasligi uchun 1.5 soniyalik himoya
         boss.setInvulnerable(true);
         Bukkit.getScheduler().runTaskLater(this, () -> {
             if (boss.isValid()) boss.setInvulnerable(false);
-        }, 20L);
+        }, 30L);
 
-        double health = getConfig().getDouble("boss.health", 1500.0);
+        double health = getConfig().getDouble("boss.health", 2000.0);
         boss.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(health);
         boss.setHealth(health);
-        boss.setCustomName(color(getConfig().getString("boss.name", "&cBoss")));
+        
+        String bossName = getConfig().getString("boss.name", "&cBoss");
+        boss.setCustomName(color(bossName));
         boss.setCustomNameVisible(true);
         boss.setRemoveWhenFarAway(false);
-        boss.setPersistent(true); // Server restart bo'lsa ham o'chib qolmasin
 
-        boss.getEquipment().setHelmet(new ItemStack(Material.valueOf(getConfig().getString("boss.helmet", "NETHERITE_HELMET"))));
-        boss.getEquipment().setChestplate(new ItemStack(Material.valueOf(getConfig().getString("boss.chestplate", "NETHERITE_CHESTPLATE"))));
-        boss.getEquipment().setLeggings(new ItemStack(Material.valueOf(getConfig().getString("boss.leggings", "NETHERITE_LEGGINGS"))));
-        boss.getEquipment().setBoots(new ItemStack(Material.valueOf(getConfig().getString("boss.boots", "NETHERITE_BOOTS"))));
-        boss.getEquipment().setItemInMainHand(new ItemStack(Material.valueOf(getConfig().getString("boss.weapon", "NETHERITE_AXE"))));
+        // Qurol va Aslahalar
+        ItemStack weapon = new ItemStack(Material.valueOf(getConfig().getString("boss.weapon", "NETHERITE_AXE")));
+        ItemStack offhand = new ItemStack(Material.valueOf(getConfig().getString("boss.offhand", "SHIELD")));
+        ItemStack helmet = new ItemStack(Material.valueOf(getConfig().getString("boss.helmet", "NETHERITE_HELMET")));
+        ItemStack chest = new ItemStack(Material.valueOf(getConfig().getString("boss.chestplate", "NETHERITE_CHESTPLATE")));
+        ItemStack leggings = new ItemStack(Material.valueOf(getConfig().getString("boss.leggings", "NETHERITE_LEGGINGS")));
+        ItemStack boots = new ItemStack(Material.valueOf(getConfig().getString("boss.boots", "NETHERITE_BOOTS")));
+
+        // Sehrlarni qo'shish
+        List<String> enchants = getConfig().getStringList("boss.enchantments");
+        for (String enchStr : enchants) {
+            try {
+                String[] parts = enchStr.split(":");
+                Enchantment ench = Enchantment.getByName(parts[0].toUpperCase());
+                int level = Integer.parseInt(parts[1]);
+                if (ench != null) {
+                    weapon.addUnsafeEnchantment(ench, level);
+                    helmet.addUnsafeEnchantment(ench, level);
+                    chest.addUnsafeEnchantment(ench, level);
+                    leggings.addUnsafeEnchantment(ench, level);
+                    boots.addUnsafeEnchantment(ench, level);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        boss.getEquipment().setItemInMainHand(weapon);
+        boss.getEquipment().setItemInOffHand(offhand);
+        boss.getEquipment().setHelmet(helmet);
+        boss.getEquipment().setChestplate(chest);
+        boss.getEquipment().setLeggings(leggings);
+        boss.getEquipment().setBoots(boots);
         
-        boss.getEquipment().setHelmetDropChance(0f); boss.getEquipment().setChestplateDropChance(0f);
-        boss.getEquipment().setLeggingsDropChance(0f); boss.getEquipment().setBootsDropChance(0f);
         boss.getEquipment().setItemInMainHandDropChance(0f);
+        boss.getEquipment().setItemInOffHandDropChance(0f);
+        boss.getEquipment().setHelmetDropChance(0f); 
+        boss.getEquipment().setChestplateDropChance(0f);
+        boss.getEquipment().setLeggingsDropChance(0f); 
+        boss.getEquipment().setBootsDropChance(0f);
 
         bossBar = Bukkit.createBossBar(getBossBarTitle(health, health), BarColor.GREEN, BarStyle.SOLID);
         for (Player p : Bukkit.getOnlinePlayers()) bossBar.addPlayer(p);
@@ -200,7 +239,24 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
 
     @EventHandler
     public void onDamage(EntityDamageByEntityEvent event) {
-        if (activeBoss == null || !event.getEntity().equals(activeBoss)) return;
+        if (activeBoss == null) return;
+
+        // Boss o'yinchilarni urganda zarar hisoblash
+        if (event.getDamager().equals(activeBoss) && event.getEntity() instanceof Player) {
+            double multiplier = isEnraged ? getConfig().getDouble("boss.damage-multiplier-enraged", 1.5) : getConfig().getDouble("boss.damage-multiplier-normal", 1.0);
+            double damage = event.getDamage() * multiplier;
+            
+            // O'yinchi bir urishda o'lib qolmasligi uchun limit
+            Player p = (Player) event.getEntity();
+            double maxCap = p.getMaxHealth() * getConfig().getDouble("boss.max-damage-cap-percent", 0.4);
+            if (damage > maxCap) damage = maxCap;
+            
+            event.setDamage(damage);
+            return;
+        }
+
+        // O'yinchilar bossni urganda
+        if (!event.getEntity().equals(activeBoss)) return;
 
         Player damager = null;
         if (event.getDamager() instanceof Player) damager = (Player) event.getDamager();
@@ -222,7 +278,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             bossBar.setTitle(getBossBarTitle(currentHealth, maxHealth));
         }
 
-        double enrageHealth = getConfig().getDouble("boss.enrage-health", 755.0);
+        double enrageHealth = getConfig().getDouble("boss.enrage-health", 750.0);
         if (!isEnraged && currentHealth <= enrageHealth) {
             isEnraged = true;
             bossBar.setColor(BarColor.RED);
@@ -238,11 +294,13 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             public void run() {
                 if (activeBoss == null || activeBoss.isDead() || !isEnraged) { this.cancel(); return; }
                 if (enrageTimer > 0) {
-                    String enrageMsg = getConfig().getString("messages.bossbar-enrage", "&#FF0000PvP: {seconds}");
+                    // Configdan g'azab yozuvini olish
+                    String enrageMsg = getConfig().getString("messages.bossbar-enrage", "&#FF0000G'azab: {seconds}");
                     bossBar.setTitle(color(enrageMsg.replace("{seconds}", String.valueOf(enrageTimer))));
                     enrageTimer--;
                 } else {
-                    bossBar.setTitle(getBossBarTitle(activeBoss.getHealth(), activeBoss.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()) + " &#FF0000[PVP YOQILDI]");
+                    // G'azab tugagach yana bossning joni va ismi chiqadi
+                    bossBar.setTitle(getBossBarTitle(activeBoss.getHealth(), activeBoss.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
                     this.cancel();
                 }
             }
@@ -303,7 +361,8 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
     }
 
     private String getBossBarTitle(double current, double max) {
-        String title = getConfig().getString("messages.bossbar-title", "Boss [{current}/{max}]");
+        String title = getConfig().getString("messages.bossbar-title", "{name} [{current}/{max}]");
+        title = title.replace("{name}", getConfig().getString("boss.name", "Boss"));
         return color(title.replace("{current}", String.valueOf(Math.round(current))).replace("{max}", String.valueOf(Math.round(max))));
     }
 
@@ -321,4 +380,4 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         matcher.appendTail(buffer);
         return net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-            }
+    }
