@@ -1,28 +1,38 @@
-# ==========================================
-# CapMine Avtomatik Boss Tizimi
-# ==========================================
-
 spawn-times:
   - "07:00"
   - "14:00"
   - "21:00"
 
-# Boss qayerda chiqishi (Buni o'yinda /cboss setspawn orqali o'rnatasiz)
 boss-location:
   world: "world"
-  x: 0.0
-  y: 65.0
-  z: 0.0
+  x: 291.0
+  y: 76.0
+  z: 234.0
 
 boss:
-  name: '&#00FF00Qɪsʜʟᴏǫɪ'
-  health: 1500.0
-  enrage-health: 755.0
+  entity-type: ZOMBIE_VILLAGER
+  name: '&#FF0000Yovuz Qishloqi' # Bossning tepasida chiqadigan ismi
+  health: 2000.0 # Umumiy joni (rasmda 2000)
+  enrage-health: 750.0 # Necha jonda g'azablanadi
+  
+  # Qurol va Kiyimlar
+  weapon: NETHERITE_AXE
+  offhand: SHIELD # Qalqon
   helmet: NETHERITE_HELMET
   chestplate: NETHERITE_CHESTPLATE
   leggings: NETHERITE_LEGGINGS
   boots: NETHERITE_BOOTS
-  weapon: NETHERITE_AXE
+  
+  # Kiyim va qurollarga tushadigan Sehrlar (Enchantments)
+  enchantments:
+    - "PROTECTION_ENVIRONMENTAL:4" # Himoya IV
+    - "DAMAGE_ALL:5" # O'tkirlik V
+    - "DURABILITY:3" # Chidamlilik III
+    
+  # Zarar sozlamalari
+  damage-multiplier-normal: 1.0 # Oddiy holatda zarar (1.0 = odatdagi)
+  damage-multiplier-enraged: 1.5 # G'azablanganda zarar (1.5 = 1.5 barobar ko'p)
+  max-damage-cap-percent: 0.4 # O'yinchining maksimal joni (masalan, 20 jon). 0.4 = 8 jon (40%) dan ko'p zarar ketmasin (bir urishda o'lmasligi uchun)
 
 warnings:
   "90": '&#FFD700[CapMine Boss] Boss paydo bo''lishiga 1 soat 30 daqiqa qoldi!'
@@ -39,12 +49,17 @@ rewards:
 messages:
   prefix: '&#FF0000CapMine Boss &8» '
   no-permission: '&cSizda ruxsat yo''q.'
+  
+  # Rasmda ko'ringan spawn xabari
+  spawn-broadcast: '&#FF0000DIYOAT! &fDUNYO BOSSI 1M DAN KEYIN SPAWN DUNYOSIDA &#00FFCC{x}, {y}, {z} &fKOORDINATALARDA PAYDO BO''LADI!'
   spawned: '&#00FF00BOSS PAYDO BO''LDI! Uni o''ldiring!'
   already-spawned: '&cHozir allaqachon bitta boss jangda!'
   location-set: '&aBoss chiqadigan joy muvaffaqiyatli saqlandi!'
   location-not-set: '&cBoss chiqadigan joy hali belgilanmagan! Admin /cboss setspawn qilishi kerak.'
-  bossbar-title: '&#00FF00Qɪsʜʟᴏǫɪ &#FFFFFF[{current}/{max}]'
-  bossbar-enrage: '&#FF0000PvP REJIM: &#FFD700{seconds} SEKUND DAVOM ETADI'
+  
+  # BossBar (Ekranning eng tepasidagi yozuv)
+  bossbar-title: '&#FF0000{name} &#FFFFFF[{current}/{max}]'
+  bossbar-enrage: '&#FF0000G''AZAB: &#FFD700{seconds} SEKUND'
   
   death-broadcast:
     - '&8&m----------------------------------------'
