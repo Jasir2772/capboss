@@ -15,7 +15,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Zombie;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -151,8 +150,28 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         isEnraged = false;
         enrageTimer = 30;
 
-        Zombie boss = (Zombie) loc.getWorld().spawnEntity(loc, EntityType.ZOMBIE);
+        // Eski BossBar qolib ketgan bo'lsa o'chirish
+        if (bossBar != null) {
+            bossBar.removeAll();
+            bossBar = null;
+        }
+
+        String entityTypeStr = getConfig().getString("boss.entity-type", "ZOMBIE_VILLAGER");
+        EntityType type;
+        try {
+            type = EntityType.valueOf(entityTypeStr.toUpperCase());
+        } catch (Exception e) {
+            type = EntityType.ZOMBIE_VILLAGER; // Xato bo'lsa default
+        }
+
+        LivingEntity boss = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
         activeBoss = boss;
+
+        // 1 soniyalik himoya (darhol o'lib qolmasligi uchun)
+        boss.setInvulnerable(true);
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (boss.isValid()) boss.setInvulnerable(false);
+        }, 20L);
 
         double health = getConfig().getDouble("boss.health", 1500.0);
         boss.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(health);
@@ -160,6 +179,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.setCustomName(color(getConfig().getString("boss.name", "&cBoss")));
         boss.setCustomNameVisible(true);
         boss.setRemoveWhenFarAway(false);
+        boss.setPersistent(true); // Server restart bo'lsa ham o'chib qolmasin
 
         boss.getEquipment().setHelmet(new ItemStack(Material.valueOf(getConfig().getString("boss.helmet", "NETHERITE_HELMET"))));
         boss.getEquipment().setChestplate(new ItemStack(Material.valueOf(getConfig().getString("boss.chestplate", "NETHERITE_CHESTPLATE"))));
@@ -301,4 +321,4 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         matcher.appendTail(buffer);
         return net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-                                                                                   }
+            }
