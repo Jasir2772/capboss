@@ -21,7 +21,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -114,7 +113,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             getConfig().set("boss-location.z", player.getLocation().getZ());
             saveConfig();
             
-            // Rasmda ko'ringan spawn xabarini yuborish
             String spawnMsg = getConfig().getString("messages.spawn-broadcast", "Boss spawn: {x}, {y}, {z}")
                     .replace("{x}", String.valueOf(Math.round(player.getLocation().getX())))
                     .replace("{y}", String.valueOf(Math.round(player.getLocation().getY())))
@@ -176,7 +174,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         LivingEntity boss = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
         activeBoss = boss;
 
-        // WorldGuard moblarni o'ldirib yubormasligi uchun 1.5 soniyalik himoya
+        // WorldGuard'dan himoya
         boss.setInvulnerable(true);
         Bukkit.getScheduler().runTaskLater(this, () -> {
             if (boss.isValid()) boss.setInvulnerable(false);
@@ -192,22 +190,35 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.setRemoveWhenFarAway(false);
 
         // Qurol va Aslahalar
-        ItemStack weapon = new ItemStack(Material.valueOf(getConfig().getString("boss.weapon", "NETHERITE_AXE")));
-        ItemStack offhand = new ItemStack(Material.valueOf(getConfig().getString("boss.offhand", "SHIELD")));
+        ItemStack mainHand = new ItemStack(Material.valueOf(getConfig().getString("boss.main-hand", "NETHERITE_SWORD")));
+        ItemStack offHand = new ItemStack(Material.valueOf(getConfig().getString("boss.off-hand", "NETHERITE_SWORD")));
         ItemStack helmet = new ItemStack(Material.valueOf(getConfig().getString("boss.helmet", "NETHERITE_HELMET")));
         ItemStack chest = new ItemStack(Material.valueOf(getConfig().getString("boss.chestplate", "NETHERITE_CHESTPLATE")));
         ItemStack leggings = new ItemStack(Material.valueOf(getConfig().getString("boss.leggings", "NETHERITE_LEGGINGS")));
         ItemStack boots = new ItemStack(Material.valueOf(getConfig().getString("boss.boots", "NETHERITE_BOOTS")));
 
-        // Sehrlarni qo'shish
-        List<String> enchants = getConfig().getStringList("boss.enchantments");
-        for (String enchStr : enchants) {
+        // Qurol Sehrlarini qo'shish (Ikkala qilichga ham)
+        List<String> weaponEnchants = getConfig().getStringList("boss.weapon-enchants");
+        for (String enchStr : weaponEnchants) {
             try {
                 String[] parts = enchStr.split(":");
                 Enchantment ench = Enchantment.getByName(parts[0].toUpperCase());
                 int level = Integer.parseInt(parts[1]);
                 if (ench != null) {
-                    weapon.addUnsafeEnchantment(ench, level);
+                    mainHand.addUnsafeEnchantment(ench, level);
+                    offHand.addUnsafeEnchantment(ench, level);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Zirh Sehrlarini qo'shish
+        List<String> armorEnchants = getConfig().getStringList("boss.armor-enchants");
+        for (String enchStr : armorEnchants) {
+            try {
+                String[] parts = enchStr.split(":");
+                Enchantment ench = Enchantment.getByName(parts[0].toUpperCase());
+                int level = Integer.parseInt(parts[1]);
+                if (ench != null) {
                     helmet.addUnsafeEnchantment(ench, level);
                     chest.addUnsafeEnchantment(ench, level);
                     leggings.addUnsafeEnchantment(ench, level);
@@ -216,13 +227,14 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             } catch (Exception ignored) {}
         }
 
-        boss.getEquipment().setItemInMainHand(weapon);
-        boss.getEquipment().setItemInOffHand(offhand);
+        boss.getEquipment().setItemInMainHand(mainHand);
+        boss.getEquipment().setItemInOffHand(offHand);
         boss.getEquipment().setHelmet(helmet);
         boss.getEquipment().setChestplate(chest);
         boss.getEquipment().setLeggings(leggings);
         boss.getEquipment().setBoots(boots);
         
+        // O'lganda qurol tushmasligi uchun
         boss.getEquipment().setItemInMainHandDropChance(0f);
         boss.getEquipment().setItemInOffHandDropChance(0f);
         boss.getEquipment().setHelmetDropChance(0f); 
@@ -241,12 +253,10 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
     public void onDamage(EntityDamageByEntityEvent event) {
         if (activeBoss == null) return;
 
-        // Boss o'yinchilarni urganda zarar hisoblash
         if (event.getDamager().equals(activeBoss) && event.getEntity() instanceof Player) {
             double multiplier = isEnraged ? getConfig().getDouble("boss.damage-multiplier-enraged", 1.5) : getConfig().getDouble("boss.damage-multiplier-normal", 1.0);
             double damage = event.getDamage() * multiplier;
             
-            // O'yinchi bir urishda o'lib qolmasligi uchun limit
             Player p = (Player) event.getEntity();
             double maxCap = p.getMaxHealth() * getConfig().getDouble("boss.max-damage-cap-percent", 0.4);
             if (damage > maxCap) damage = maxCap;
@@ -255,7 +265,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             return;
         }
 
-        // O'yinchilar bossni urganda
         if (!event.getEntity().equals(activeBoss)) return;
 
         Player damager = null;
@@ -294,12 +303,10 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             public void run() {
                 if (activeBoss == null || activeBoss.isDead() || !isEnraged) { this.cancel(); return; }
                 if (enrageTimer > 0) {
-                    // Configdan g'azab yozuvini olish
                     String enrageMsg = getConfig().getString("messages.bossbar-enrage", "&#FF0000G'azab: {seconds}");
                     bossBar.setTitle(color(enrageMsg.replace("{seconds}", String.valueOf(enrageTimer))));
                     enrageTimer--;
                 } else {
-                    // G'azab tugagach yana bossning joni va ismi chiqadi
                     bossBar.setTitle(getBossBarTitle(activeBoss.getHealth(), activeBoss.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue()));
                     this.cancel();
                 }
@@ -380,4 +387,4 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         matcher.appendTail(buffer);
         return net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-    }
+                                         }
