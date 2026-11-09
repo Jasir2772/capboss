@@ -19,6 +19,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
@@ -39,6 +40,8 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
     private BossBar bossBar = null;
     private final List<UUID> activeMinions = new ArrayList<>();
     private final Map<UUID, Double> damageMap = new HashMap<>();
+    private final Set<UUID> spawningEntities = new HashSet<>(); // Himoya tizimi uchun
+    
     private boolean isEnraged = false;
     private int enrageTimer = 30;
     private final Set<Integer> sentWarnings = new HashSet<>();
@@ -75,12 +78,10 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
                 else if (minSeconds > 0 && minSeconds <= 300 && !sentWarnings.contains(5) && minSeconds > 120) sendWarning(5);
                 else if (minSeconds > 0 && minSeconds <= 60 && !sentWarnings.contains(1) && minSeconds > 10) sendWarning(1);
 
-                // VAQTI KELGANDA BOSS CHIQARISH
                 if (minSeconds <= 0 && minSeconds > -5) {
                     sentWarnings.clear();
                     Location loc = getSpawnLocation();
                     if (loc != null) {
-                        // Agar eski boss tirik bo'lsa, uni o'chirib yuboramiz
                         if (activeBoss != null && !activeBoss.isDead()) {
                             removeBossAndMinions();
                         }
@@ -132,7 +133,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("spawn")) {
-            // Agar oldin boss bo'lsa o'chiramiz
             if (activeBoss != null && !activeBoss.isDead()) {
                 removeBossAndMinions();
             }
@@ -163,6 +163,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
 
     private void spawnBoss(Location loc) {
         damageMap.clear();
+        spawningEntities.clear();
         isEnraged = false;
         enrageTimer = 30;
 
@@ -182,15 +183,17 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         LivingEntity boss = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
         activeBoss = boss;
 
-        boss.setInvulnerable(true);
-        Bukkit.getScheduler().runTaskLater(this, () -> {
-            if (boss.isValid()) boss.setInvulnerable(false);
-        }, 30L);
+        // HIMOYA TIZIMI (Invulnerable o'rniga xavfsizroq usul)
+        spawningEntities.add(boss.getUniqueId());
+        Bukkit.getScheduler().runTaskLater(this, () -> spawningEntities.remove(boss.getUniqueId()), 40L); // 2 sekund
 
         double health = getConfig().getDouble("boss.health", 2000.0);
         boss.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(health);
         boss.setHealth(health);
         
+        // Urganda joni tez tushishi uchun (0.5s kutishni o'chiradi)
+        boss.setMaximumNoDamageTicks(0);
+
         String bossName = getConfig().getString("boss.name", "&cBoss");
         boss.setCustomName(color(bossName));
         boss.setCustomNameVisible(true);
@@ -245,7 +248,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.getEquipment().setLeggingsDropChance(0f); 
         boss.getEquipment().setBootsDropChance(0f);
 
-        // YORDAMCHILARNI CHIQARISH
         spawnMinions(loc);
 
         bossBar = Bukkit.createBossBar(getBossBarTitle(health, health), BarColor.GREEN, BarStyle.SOLID);
@@ -300,10 +302,18 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         }
     }
 
-    @EventHandler
+    // HODISA PRIORITETI ENG YUQORI QILINDI (WorldGuard va AntiCheat uchun)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onDamage(EntityDamageByEntityEvent event) {
         if (activeBoss == null) return;
 
+        // Agar boss o'zi himoyalanayotgan bo'lsa (spawn bo'lganda)
+        if (spawningEntities.contains(event.getEntity().getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        // Boss o'yinchiga zarar yetkazganda
         if (event.getDamager().equals(activeBoss) && event.getEntity() instanceof Player) {
             double multiplier = isEnraged ? getConfig().getDouble("boss.damage-multiplier-enraged", 1.5) : getConfig().getDouble("boss.damage-multiplier-normal", 1.0);
             double damage = event.getDamage() * multiplier;
@@ -316,7 +326,11 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             return;
         }
 
+        // O'yinchi bossga zarar yetkazganda
         if (!event.getEntity().equals(activeBoss)) return;
+
+        // WorldGuard va boshqa plaginlar to'sib qo'ymasligi uchun ruxsat beramiz
+        event.setCancelled(false);
 
         Player damager = null;
         if (event.getDamager() instanceof Player) damager = (Player) event.getDamager();
@@ -371,7 +385,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
 
         event.getDrops().clear();
         
-        // Yordamchilarni ham o'chiramiz
         for (UUID minionId : activeMinions) {
             Entity minion = Bukkit.getEntity(minionId);
             if (minion != null) minion.remove();
@@ -446,4 +459,4 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         matcher.appendTail(buffer);
         return ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-                }
+    }
