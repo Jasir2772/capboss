@@ -1,6 +1,7 @@
 package uz.capmine.boss;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -13,6 +14,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -35,6 +37,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
 
     private LivingEntity activeBoss = null;
     private BossBar bossBar = null;
+    private final List<UUID> activeMinions = new ArrayList<>();
     private final Map<UUID, Double> damageMap = new HashMap<>();
     private boolean isEnraged = false;
     private int enrageTimer = 30;
@@ -46,7 +49,7 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         this.getCommand("cboss").setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
         startScheduler();
-        getLogger().info("CapMine Boss tizimi yoqildi!");
+        getLogger().info("CapMine Boss tizimi va Yordamchilar tizimi yoqildi!");
     }
 
     private void startScheduler() {
@@ -72,10 +75,15 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
                 else if (minSeconds > 0 && minSeconds <= 300 && !sentWarnings.contains(5) && minSeconds > 120) sendWarning(5);
                 else if (minSeconds > 0 && minSeconds <= 60 && !sentWarnings.contains(1) && minSeconds > 10) sendWarning(1);
 
-                if (minSeconds <= 0 && minSeconds > -5 && (activeBoss == null || activeBoss.isDead())) {
+                // VAQTI KELGANDA BOSS CHIQARISH
+                if (minSeconds <= 0 && minSeconds > -5) {
                     sentWarnings.clear();
                     Location loc = getSpawnLocation();
                     if (loc != null) {
+                        // Agar eski boss tirik bo'lsa, uni o'chirib yuboramiz
+                        if (activeBoss != null && !activeBoss.isDead()) {
+                            removeBossAndMinions();
+                        }
                         spawnBoss(loc);
                     } else {
                         Bukkit.getConsoleSender().sendMessage(color("&c[CapMine Boss] XATO: Boss chiqadigan joy belgilanmagan! /cboss setspawn qiling."));
@@ -124,9 +132,9 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("spawn")) {
+            // Agar oldin boss bo'lsa o'chiramiz
             if (activeBoss != null && !activeBoss.isDead()) {
-                sender.sendMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.already-spawned")));
-                return true;
+                removeBossAndMinions();
             }
             Location loc = getSpawnLocation();
             if (loc != null) {
@@ -174,7 +182,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         LivingEntity boss = (LivingEntity) loc.getWorld().spawnEntity(loc, type);
         activeBoss = boss;
 
-        // WorldGuard'dan himoya
         boss.setInvulnerable(true);
         Bukkit.getScheduler().runTaskLater(this, () -> {
             if (boss.isValid()) boss.setInvulnerable(false);
@@ -189,7 +196,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.setCustomNameVisible(true);
         boss.setRemoveWhenFarAway(false);
 
-        // Qurol va Aslahalar
         ItemStack mainHand = new ItemStack(Material.valueOf(getConfig().getString("boss.main-hand", "NETHERITE_SWORD")));
         ItemStack offHand = new ItemStack(Material.valueOf(getConfig().getString("boss.off-hand", "NETHERITE_SWORD")));
         ItemStack helmet = new ItemStack(Material.valueOf(getConfig().getString("boss.helmet", "NETHERITE_HELMET")));
@@ -197,7 +203,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         ItemStack leggings = new ItemStack(Material.valueOf(getConfig().getString("boss.leggings", "NETHERITE_LEGGINGS")));
         ItemStack boots = new ItemStack(Material.valueOf(getConfig().getString("boss.boots", "NETHERITE_BOOTS")));
 
-        // Qurol Sehrlarini qo'shish (Ikkala qilichga ham)
         List<String> weaponEnchants = getConfig().getStringList("boss.weapon-enchants");
         for (String enchStr : weaponEnchants) {
             try {
@@ -211,7 +216,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             } catch (Exception ignored) {}
         }
 
-        // Zirh Sehrlarini qo'shish
         List<String> armorEnchants = getConfig().getStringList("boss.armor-enchants");
         for (String enchStr : armorEnchants) {
             try {
@@ -234,7 +238,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.getEquipment().setLeggings(leggings);
         boss.getEquipment().setBoots(boots);
         
-        // O'lganda qurol tushmasligi uchun
         boss.getEquipment().setItemInMainHandDropChance(0f);
         boss.getEquipment().setItemInOffHandDropChance(0f);
         boss.getEquipment().setHelmetDropChance(0f); 
@@ -242,11 +245,59 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         boss.getEquipment().setLeggingsDropChance(0f); 
         boss.getEquipment().setBootsDropChance(0f);
 
+        // YORDAMCHILARNI CHIQARISH
+        spawnMinions(loc);
+
         bossBar = Bukkit.createBossBar(getBossBarTitle(health, health), BarColor.GREEN, BarStyle.SOLID);
         for (Player p : Bukkit.getOnlinePlayers()) bossBar.addPlayer(p);
         
         Bukkit.broadcastMessage(color(getConfig().getString("messages.prefix") + getConfig().getString("messages.spawned")));
         for (Player p : Bukkit.getOnlinePlayers()) p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1f);
+    }
+
+    private void spawnMinions(Location center) {
+        if (!getConfig().getBoolean("minions.enabled", true)) return;
+
+        activeMinions.clear();
+        int count = getConfig().getInt("minions.count", 5);
+        String typeStr = getConfig().getString("minions.type", "ZOMBIE");
+        
+        EntityType minionType;
+        try {
+            minionType = EntityType.valueOf(typeStr.toUpperCase());
+        } catch (Exception e) {
+            minionType = EntityType.ZOMBIE;
+        }
+
+        Random rand = new Random();
+
+        for (int i = 0; i < count; i++) {
+            double x = center.getX() + (rand.nextDouble() * 8 - 4);
+            double z = center.getZ() + (rand.nextDouble() * 8 - 4);
+            Location spawnLoc = new Location(center.getWorld(), x, center.getY(), z);
+            
+            LivingEntity minion = (LivingEntity) center.getWorld().spawnEntity(spawnLoc, minionType);
+            minion.setCustomName(color("&#FF5555Yordamchi"));
+            minion.setCustomNameVisible(true);
+            
+            activeMinions.add(minion.getUniqueId());
+        }
+    }
+
+    private void removeBossAndMinions() {
+        if (activeBoss != null && !activeBoss.isDead()) {
+            activeBoss.remove();
+        }
+        for (UUID minionId : activeMinions) {
+            Entity minion = Bukkit.getEntity(minionId);
+            if (minion != null) minion.remove();
+        }
+        activeMinions.clear();
+        
+        if (bossBar != null) {
+            bossBar.removeAll();
+            bossBar = null;
+        }
     }
 
     @EventHandler
@@ -319,6 +370,14 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
         if (activeBoss == null || !event.getEntity().equals(activeBoss)) return;
 
         event.getDrops().clear();
+        
+        // Yordamchilarni ham o'chiramiz
+        for (UUID minionId : activeMinions) {
+            Entity minion = Bukkit.getEntity(minionId);
+            if (minion != null) minion.remove();
+        }
+        activeMinions.clear();
+
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
         List<Map.Entry<UUID, Double>> sorted = damageMap.entrySet().stream()
@@ -385,6 +444,6 @@ public class CapMineBoss extends JavaPlugin implements CommandExecutor, Listener
             matcher.appendReplacement(buffer, replacement.toString());
         }
         matcher.appendTail(buffer);
-        return net.md_5.bungee.api.ChatColor.translateAlternateColorCodes('&', buffer.toString());
+        return ChatColor.translateAlternateColorCodes('&', buffer.toString());
     }
-                                         }
+                }
